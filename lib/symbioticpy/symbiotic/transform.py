@@ -79,6 +79,25 @@ class CompileWatch(ProcessWatch):
                 dbg(line.decode('utf-8'), 'compile', print_nl=False)
 
 
+class ReverserWatch(ProcessWatch):
+    """ Parse output of reversing """
+
+    def __init__(self, nodbg = False):
+        ProcessWatch.__init__(self)
+        self.nodbg = nodbg
+
+    def parse(self, line):
+        if b'INFO' in line:
+            print_stdout(line.decode('utf-8'), print_nl=False, prefix="[reverser] ")
+        elif b'ERROR' in line or b'error' in line:
+            print_stderr(line.decode('utf-8'))
+        elif b'Unsupported' in line:
+            pass
+        else:
+            dbg(line.decode('utf-8'), domain='reverser', print_nl = False,
+                prefix='', color=None)
+
+
 class UnsuppWatch(ProcessWatch):
     unsupported_call = re.compile('.*call to .* is unsupported.*')
 
@@ -214,8 +233,10 @@ class SymbioticCC(object):
                                 # it works also to compile with -O1 or -Og
                                 '-fgnu89-inline',
                                 '-D__inline='] + opts
+        if not self.options.reverse:
+            cmd += opts
 
-        if with_g:
+        if with_g and not self.options.reverse:
             cmd.append('-g')
 
         if self.options.CFLAGS:
@@ -280,6 +301,51 @@ class SymbioticCC(object):
         except SymbioticException:
             # not fatal, continue working
             dbg('Failed getting statistics')
+    
+    def _reverse(self):
+        self._get_stats('Before reversing ')
+        print_stdout('INFO: Starting reverser', color='WHITE')
+
+        if self.options.reverser_timeout > 0:
+            cmd = ['timeout', str(self.options.reverser_timeout)]
+        else:
+            cmd = []
+
+        output = '{0}-rev.bc'.format(self.curfile[:self.curfile.rfind('.')])
+        cmd += ['reverser', '--bc', '-o', output, '--status']
+
+        if not self.options.property.assertions():
+            cmd.append('--sv-comp')
+
+        if not (self.options.property.unreachcall() or self.property.assertions()):
+            print_stdout("INFO: --reverse option is not compatible",
+                "with the specified property, skipping reversing",
+                print_nl=False)
+            return
+        
+        cmd += [self.curfile]
+
+        restart_counting_time()
+        watch = ReverserWatch()
+        process = ProcessRunner()
+
+        retval = process.run(cmd, watch)
+        if retval != 0:
+            unsuppoerted = False
+            for line in watch.getLines():
+                print_stderr(line.decode('utf-8'), color='RED', print_nl=False)
+            print_elapsed_time('INFO: Reverser [FAILED] time', color='WHITE')
+            raise SymbioticException("cannot reverse")
+        else:
+            print_elapsed_time('INFO: Reverser time', color='WHITE')
+            self.curfile = output
+            self._save_ll()
+
+        self._get_stats('After reversing ')
+
+    def reverse(self):
+        """Run reverser on the code."""
+        self._reverse()
 
     def _instrument(self):
         if not hasattr(self._tool, 'instrumentation_options'):
@@ -596,6 +662,10 @@ class SymbioticCC(object):
 
         opts += self.cc_disable_optimizations()
 
+        if self.reverse:
+            # reverser cannot parse many instructions introduced by optimizations
+            opts = [] 
+
         llvmsrc = []
         options = self.options
         for source in self.sources:
@@ -764,6 +834,14 @@ class SymbioticCC(object):
                           '-sbt-loop-unroll-count',
                           str(self.options.unroll_count),
                           '-sbt-loop-unroll-terminate'])
+            
+        #################### #################### ###################
+        # REVERSING
+        #  - try to reverse the LLVM code, if the option is specified
+        #################### #################### ###################
+
+        if self.options.reverse:
+            self.reverse()
 
         #################### #################### ###################
         # PREPROCESSING before instrumentation

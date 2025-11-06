@@ -5,7 +5,7 @@ from hashlib import sha256 as hashfunc
 import datetime
 import yaml
 import sys
-from .. utils.utils import print_stderr
+from .. utils.utils import print_stderr, dbg
 import uuid
 from ..options import get_versions
 
@@ -24,6 +24,7 @@ class YAMLWriter(object):
         self._prps = prps
         self._is32bit = is32bit
         self._correctness_wit = is_correctness_wit
+        self._trivial_target = "reach_error"
 
         self.test = []
         self.errorLoc = None
@@ -65,6 +66,16 @@ class YAMLWriter(object):
         self.create_content()
 
 
+    def generate_trivial_violation_witness(self, path):
+        dbg("generating trivial violation YAML witness")
+
+        self.parse(path)
+        assert self.errorLoc, "Failed generating a YAML witness"
+
+        self.add_metadata()
+        self.create_content(trivial=True)
+
+
     def generate_correctness_witness(self):
         self.add_metadata()
 
@@ -77,7 +88,6 @@ class YAMLWriter(object):
     def write(self, to):
         with open(to, "w") as witness_file:
             yaml.safe_dump(self.witness, witness_file, default_style=None)
-
 
 
     # Traverse the AST, find the right brackets of functions and the full expression of the target
@@ -109,40 +119,64 @@ class YAMLWriter(object):
             self.traverse_AST(child)
 
 
+    def AST_find_trivial_target(self, node):
+        # Recurse for children of this node
 
-    def create_content(self):
+        for child in node.get_children():
+            if child.location.file.name != self._source:
+                dbg(f"{child.location.file.name} != {self._source}")
+                continue
+
+            start = child.extent.start
+            end = child.extent.end
+
+            if child.kind == clang.cindex.CursorKind.CALL_EXPR:
+                called = child.referenced
+                
+                if called is not None and called.spelling == self._trivial_target:
+                        self.errorExpr = start.line, start.column
+                        return
+            
+            self.AST_find_trivial_target(child)
+
+
+    def create_content(self, trivial = False):
         sys.setrecursionlimit(2048)
 
         index = clang.cindex.Index.create()
         tu = index.parse(self._source, args=['-fbracket-depth=2048'])
         root = tu.cursor
-        self.traverse_AST(root)
+        if trivial:
+            self.AST_find_trivial_target(root)
+        else:
+            self.traverse_AST(root)
 
         if not self.errorExpr:
             print_stderr("Warning: Could not get target location for witness")
 
         content = []
 
-        for call in self.test:
-            new_location = self.calls[(call[0], call[1])]
-            assert new_location, "Failed creating witness"
+        if not trivial:
+            for call in self.test:
+                new_location = self.calls[(call[0], call[1])]
+                assert new_location, "Failed creating witness"
 
-            segment = []
-            waypoint = { 'type' : 'function_return',
-                          'action' : 'follow',
-                          'constraint' : {
-                            'format' : 'c_expression',
-                            'value' : '\\result == ' + call[2]
-                          },
-                          'location' : {
-                            'file_name' : self._source,
-                            'line' : new_location[0],
-                            'column' : new_location[1]
-                          }
+                segment = []
+                waypoint = { 'type' : 'function_return',
+                            'action' : 'follow',
+                            'constraint' : {
+                                'format' : 'c_expression',
+                                'value' : '\\result == ' + call[2]
+                            },
+                            'location' : {
+                                'file_name' : self._source,
+                                'line' : new_location[0],
+                                'column' : new_location[1]
+                            }
 
-                        }
-            segment.append({'waypoint' : waypoint})
-            content.append({'segment' : segment})
+                            }
+                segment.append({'waypoint' : waypoint})
+                content.append({'segment' : segment})
 
         target_segment = []
         target = { 'type' : 'target',

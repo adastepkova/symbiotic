@@ -22,6 +22,8 @@ def get_versions():
         }
         LLVM_VERSION='unknown'
 
+    versions['reverser'] = 'f49d8c64cdb5b89748ab689bf0a95446bb66dc74 (Release)'
+
     return (VERSION, versions, LLVM_VERSION, build_types)
 
 class SymbioticOptions(object):
@@ -47,6 +49,7 @@ class SymbioticOptions(object):
         self.timeout = 0
         self.slicer_timeout = 0
         self.instrumentation_timeout = 0
+        self.reverser_timeout = 0
         self.no_optimize = False
         self.no_verification = False
         self.no_instrument = False
@@ -98,6 +101,7 @@ class SymbioticOptions(object):
         # how to report the results? Types are: normal, short, sv-comp.
         # Some of the types can be used simultaneously
         self.report_type = ['normal']
+        self.reverse = False
 
         self.sv_comp = False
         self.test_comp = False
@@ -250,7 +254,7 @@ def parse_command_line():
                                     'search-include-paths', 'replay-error', 'cc',
                                     'report=', 'no-replay-error',
                                     'unroll=', 'full-instrumentation', 'target-settings=',
-                                    'witness-check=', 'graphml-witness='])
+                                    'witness-check=', 'graphml-witness=', 'reverse'])
                                    # add klee-params
     except getopt.GetoptError as e:
         err('{0}'.format(str(e)))
@@ -447,6 +451,14 @@ def parse_command_line():
             options.full_instrumentation = True
         elif opt == '--test-suite':
             options.testsuite_output = abspath(arg)
+        elif opt == '--reverse':
+            options.reverse = True
+        elif opt == '--reverser-timeout':
+            try:
+                options.reverser_timeout = int(arg)
+            except ValueError:
+                err('Invalid numerical argument for timeout: {0}'.format(arg))
+            dbg('Timeout set to {0} sec'.format(arg))
 
     # check conflicts
     if options.require_slicer and options.noslice:
@@ -563,6 +575,9 @@ where OPTS can be following:
                                  instrument tracking of the state of the program directly
                                  into the program.
     --require-slicer             Abort if slicing fails/timeouts
+    --reverse                    Reverse the program before instrumentation
+    --reverser-timeout           Set timeout for reverser (if reverser
+                                 timeouts, the original program is used).
 
     The sources can be LLVM bitcode, C code, or both mixed together.
     C files are compiled into LLVM bitcode and all the input files are linked

@@ -50,7 +50,12 @@ class SymbioticTool(BaseTool, SymbioticBaseTool):
     def verifiers(self):
         prp = self._options.property
         if prp.unreachcall():
-            yield (KleeTool(self._options), None, 333)
+            if self._options.reverse:
+                dbg("--reverse option active: selecting KLEE with no timeout")
+                yield (KleeTool(self._options), None, None)
+            else:
+                yield (KleeTool(self._options), None, 333)
+            
             if self._hit_threads:
                 yield (SlowbeastTool(self._options), ['-threads'], None)
             else:

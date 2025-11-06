@@ -230,7 +230,10 @@ def generate_yaml(path, source, is_correctness_wit, opts, saveto):
     gen = YAMLWriter(source, opts.property.ltl(),
                         opts.is32bit, is_correctness_wit)
     if not is_correctness_wit:
-        gen.generate_violation_witness(path)
+        if opts.reverse:
+            gen.generate_trivial_violation_witness(path)
+        else:
+            gen.generate_violation_witness(path)
     else:
         gen.generate_correctness_witness()
         assert path is None
