@@ -56,20 +56,20 @@ class SymbioticTool(BaseTool, SymbioticBaseTool):
             else:
                 yield (KleeTool(self._options), None, 333)
             
-            if self._hit_threads:
-                yield (SlowbeastTool(self._options), ['-threads'], None)
-            else:
-                yield (SlowbeastTool(self._options), ['-cse'], 60)
-                yield (SlowbeastTool(self._options, bself=True), ['-bself'], None)
-                # if slowbeast crashes, run KLEE w/o timeout
-                # yield (KleeTool(self._options), None, None)
+                if self._hit_threads:
+                    yield (SlowbeastTool(self._options), ['-threads'], None)
+                else:
+                    yield (SlowbeastTool(self._options), ['-cse'], 60)
+                    yield (SlowbeastTool(self._options, bself=True), ['-bself'], None)
+                    # if slowbeast crashes, run KLEE w/o timeout
+                    # yield (KleeTool(self._options), None, None)
 
-                # slowbeast  got better support for floats and threads,
-                # so if KLEE fails, try slowbeast once more
-                # TODO: use threads only if KLEE hits threads and for other
-                # cases use incremental solving
-                #(SlowbeastTool(self._options), ['-threads', '-se-incremental-solving'], None),
-                yield (SlowbeastTool(self._options), ['-se-incremental-solving'], None)
+                    # slowbeast  got better support for floats and threads,
+                    # so if KLEE fails, try slowbeast once more
+                    # TODO: use threads only if KLEE hits threads and for other
+                    # cases use incremental solving
+                    #(SlowbeastTool(self._options), ['-threads', '-se-incremental-solving'], None),
+                    yield (SlowbeastTool(self._options), ['-se-incremental-solving'], None)
         else:
             yield (KleeTool(self._options), None, None)
             if self._hit_threads:
