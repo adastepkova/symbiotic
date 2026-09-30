@@ -836,14 +836,6 @@ class SymbioticCC(object):
                           '-sbt-loop-unroll-count',
                           str(self.options.unroll_count),
                           '-sbt-loop-unroll-terminate'])
-            
-        #################### #################### ###################
-        # REVERSING
-        #  - try to reverse the LLVM code, if the option is specified
-        #################### #################### ###################
-
-        if self.options.reverse:
-            self.reverse()
 
         #################### #################### ###################
         # PREPROCESSING before instrumentation
@@ -968,6 +960,14 @@ class SymbioticCC(object):
         self.process_after_slicing()
 
         self._get_stats('After slicing and post-processing')
+
+        #################### #################### ###################
+        # REVERSING
+        #  - try to reverse the LLVM code, if the option is specified
+        #################### #################### ###################
+
+        if self.options.reverse:
+            self.reverse()
 
         if not self.options.final_output is None:
             # copy the file to final_output
