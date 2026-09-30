@@ -102,6 +102,10 @@ class SymbioticOptions(object):
         # Some of the types can be used simultaneously
         self.report_type = ['normal']
         self.reverse = False
+        # path to the file produced by 'reverser --error-ids', mapping ids returned by
+        # __reverser_error_id() to the original assert locations; set by transform.py
+        # once the reverser subprocess has run successfully
+        self.reverser_error_ids_file = None
 
         self.sv_comp = False
         self.test_comp = False

@@ -312,7 +312,8 @@ class SymbioticCC(object):
             cmd = []
 
         output = '{0}-rev.bc'.format(self.curfile[:self.curfile.rfind('.')])
-        cmd += ['reverser', '--bc', '-o', output, '--status']
+        error_ids = '{0}.error-ids'.format(output[:output.rfind('.')])
+        cmd += ['reverser', '--bc', '-o', output, '--error-ids', error_ids, '--status']
 
         if not self.options.property.assertions():
             cmd.append('--sv-comp')
@@ -339,6 +340,7 @@ class SymbioticCC(object):
         else:
             print_elapsed_time('INFO: Reverser time', color='WHITE')
             self.curfile = output
+            self.options.reverser_error_ids_file = error_ids
             self._save_ll()
 
         self._get_stats('After reversing ')
@@ -664,7 +666,7 @@ class SymbioticCC(object):
 
         if self.reverse:
             # reverser cannot parse many instructions introduced by optimizations
-            opts = [] 
+            opts = ["-g"] 
 
         llvmsrc = []
         options = self.options

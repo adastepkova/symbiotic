@@ -66,14 +66,14 @@ class YAMLWriter(object):
         self.create_content()
 
 
-    def generate_trivial_violation_witness(self, path):
+    def generate_trivial_violation_witness(self, path, reverser_location=None):
         dbg("generating trivial violation YAML witness")
 
         self.parse(path)
         assert self.errorLoc, "Failed generating a YAML witness"
 
         self.add_metadata()
-        self.create_content(trivial=True)
+        self.create_content(trivial=True, reverser_location=reverser_location)
 
 
     def generate_correctness_witness(self):
@@ -140,16 +140,25 @@ class YAMLWriter(object):
             self.AST_find_trivial_target(child)
 
 
-    def create_content(self, trivial = False):
+    def create_content(self, trivial = False, reverser_location = None):
         sys.setrecursionlimit(2048)
 
-        index = clang.cindex.Index.create()
-        tu = index.parse(self._source, args=['-fbracket-depth=2048'])
-        root = tu.cursor
-        if trivial:
-            self.AST_find_trivial_target(root)
+        if trivial and reverser_location is not None:
+            # the exact target location is already known (mapped from the concrete
+            # value of __reverser_error_id() via reverser's --error-ids file), so
+            # there is no need to guess it by scanning the source's AST
+            _, line, col = reverser_location
+            self.errorExpr = (line, col)
         else:
-            self.traverse_AST(root)
+            index = clang.cindex.Index.create()
+            tu = index.parse(self._source, args=['-fbracket-depth=2048'])
+            root = tu.cursor
+            if trivial:
+                print_stderr("Warning: error location for trivial witness not supplied," \
+                             "the witness will contain the first error location found in the AST")
+                self.AST_find_trivial_target(root)
+            else:
+                self.traverse_AST(root)
 
         if not self.errorExpr:
             print_stderr("Warning: Could not get target location for witness")
